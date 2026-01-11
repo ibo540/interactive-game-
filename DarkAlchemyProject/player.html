@@ -393,6 +393,34 @@
                 } else if (typeof channel.send === 'function') {
                     channel.send({ type: 'JOIN_REQUEST', code: code, name: name });
                     console.log('Join request sent via local channel');
+                    
+                    // Check if we're trying cross-device without server
+                    const isCrossDevice = window.location.hostname !== 'localhost' && 
+                                         window.location.hostname !== '127.0.0.1' &&
+                                         !window.location.hostname.startsWith('192.168.') &&
+                                         !window.location.hostname.startsWith('10.') &&
+                                         !window.location.hostname.startsWith('172.');
+                    
+                    if (isCrossDevice) {
+                        // Cross-device attempt without server - show helpful message quickly
+                        setTimeout(() => {
+                            if (connectionTimeoutId) {
+                                clearTimeout(connectionTimeoutId);
+                                connectionTimeoutId = null;
+                            }
+                            const errorMsg = document.getElementById('error-msg');
+                            if (errorMsg) {
+                                errorMsg.innerText = 'Cross-device play requires a WebSocket server. Please join from the same device as the host.';
+                                errorMsg.style.display = 'block';
+                            }
+                            if (btnJoin) {
+                                btnJoin.disabled = false;
+                                btnJoin.style.opacity = '1';
+                                const btnText = btnJoin.querySelector('.btn-text');
+                                if (btnText) btnText.innerText = 'ENTER';
+                            }
+                        }, 2000);
+                    }
                 } else {
                     throw new Error('Channel has no send or joinSession method');
                 }
