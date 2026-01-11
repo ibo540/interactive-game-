@@ -93,13 +93,24 @@ class GameSession {
 
         if (msg.type === 'JOIN_REQUEST') {
             // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/337209b4-c064-4f4f-9d1d-83736bceeff3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game_engine.js:87',message:'Game engine received JOIN_REQUEST',data:{msgCode:msg.code,msgName:msg.name,engineSessionCode:this.sessionCode,engineState:this.state,currentPlayersCount:this.players.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            fetch('http://127.0.0.1:7242/ingest/337209b4-c064-4f4f-9d1d-83736bceeff3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game_engine.js:87',message:'Game engine received JOIN_REQUEST',data:{msgCode:msg.code,msgName:msg.name,engineSessionCode:this.sessionCode,engineState:this.state,currentPlayersCount:this.players.length,channelConnected:this.channel.connected},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
             // #endregion
+            
+            // CRITICAL FIX: When using WebSocket, server is source of truth
+            // Don't process JOIN_REQUEST locally - wait for server's STATE_UPDATE
+            // Only process locally if we're in local mode (no WebSocket connection)
+            if (this.channel && this.channel.connected) {
+                console.log('🔄 WebSocket connected - ignoring local JOIN_REQUEST, waiting for server STATE_UPDATE');
+                return; // Server will handle it and send STATE_UPDATE
+            }
+            
+            // Local mode: process JOIN_REQUEST directly
             if (this.state === 'LOBBY' && msg.code === this.sessionCode) {
                 // Prevent duplicate joins
                 if (this.players.some(p => p.name === msg.name)) return;
 
                 // Accept Player
+                console.log('🔄 Local mode: Adding player', msg.name);
                 this.players.push({ name: msg.name, role: null });
                 // #region agent log
                 fetch('http://127.0.0.1:7242/ingest/337209b4-c064-4f4f-9d1d-83736bceeff3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game_engine.js:95',message:'Game engine added player',data:{playerName:msg.name,newPlayersCount:this.players.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
@@ -146,22 +157,30 @@ class GameSession {
             // #endregion
             // Update player list from server if session codes match
             if (msg.sessionCode === this.sessionCode && msg.playerCount !== undefined) {
-                // Sync actual player names from server
-                if (msg.players && Array.isArray(msg.players)) {
+                // CRITICAL: Server should always send actual player names
+                // Only sync if we have the players array - never use placeholder names
+                if (msg.players && Array.isArray(msg.players) && msg.players.length > 0) {
                     // Server sent actual player names - use them
+                    console.log('🔄 Syncing player names from server:', msg.players);
                     this.players = msg.players.map(name => ({ name: name, role: null }));
                     // #region agent log
                     fetch('http://127.0.0.1:7242/ingest/337209b4-c064-4f4f-9d1d-83736bceeff3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game_engine.js:150',message:'Game engine synced player names from server',data:{playerNames:msg.players,playerCount:this.players.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
                     // #endregion
+                } else if (msg.players && Array.isArray(msg.players) && msg.players.length === 0) {
+                    // Empty array means no players - clear the list
+                    console.log('🔄 Clearing player list (server sent empty array)');
+                    this.players = [];
                 } else {
-                    // Fallback: only player count available, sync count only
-                    const serverPlayerCount = msg.playerCount;
-                    while (this.players.length < serverPlayerCount) {
-                        this.players.push({ name: `Player ${this.players.length + 1}`, role: null });
-                    }
-                    while (this.players.length > serverPlayerCount) {
-                        this.players.pop();
-                    }
+                    // Server didn't send players array - log warning but don't create placeholders
+                    // This should never happen if server is working correctly
+                    console.warn('⚠️ Server STATE_UPDATE missing players array!', {
+                        hasPlayers: !!msg.players,
+                        isArray: Array.isArray(msg.players),
+                        playerCount: msg.playerCount,
+                        currentPlayers: this.players.map(p => p.name)
+                    });
+                    // Don't modify players if we don't have actual names from server
+                    // Keep existing players to avoid overwriting with placeholders
                 }
                 this.updateUI();
                 
