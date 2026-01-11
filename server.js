@@ -24,6 +24,11 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.static(path.join(__dirname, 'DarkAlchemyProject')));
 
+// Root route - serve index.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'DarkAlchemyProject', 'index.html'));
+});
+
 // Store active game sessions
 const gameSessions = new Map(); // sessionCode -> { players: Set, hostSocketId: string }
 
