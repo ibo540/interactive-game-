@@ -126,6 +126,12 @@ class DualChannel {
                 this.input({ type: 'STATE_UPDATE', ...data });
             });
 
+            // CRITICAL FIX: Listen for ROLE_ASSIGNMENT as separate event
+            this.socket.on('ROLE_ASSIGNMENT', (data) => {
+                console.log('📥 Received ROLE_ASSIGNMENT via WebSocket:', data);
+                this.input({ type: 'ROLE_ASSIGNMENT', ...data });
+            });
+
             this.socket.on('SESSION_CREATED', (data) => {
                 this.input({ type: 'SESSION_CREATED', ...data });
             });

@@ -112,11 +112,23 @@ io.on('connection', (socket) => {
   socket.on('GAME_MESSAGE', (data) => {
     if (!socket.sessionCode) return;
 
-    // Broadcast to all players in the session (including sender)
-    io.to(socket.sessionCode).emit('GAME_MESSAGE', {
-      ...data,
-      sender: socket.playerName
-    });
+    // CRITICAL FIX: If this is a STATE_UPDATE or ROLE_ASSIGNMENT, emit it directly
+    // so players receive it properly
+    if (data.type === 'STATE_UPDATE' || data.type === 'ROLE_ASSIGNMENT') {
+      // Broadcast STATE_UPDATE or ROLE_ASSIGNMENT directly to all players
+      io.to(socket.sessionCode).emit(data.type, data);
+      // Also emit as GAME_MESSAGE for backward compatibility
+      io.to(socket.sessionCode).emit('GAME_MESSAGE', {
+        ...data,
+        sender: socket.playerName
+      });
+    } else {
+      // Broadcast other game messages normally
+      io.to(socket.sessionCode).emit('GAME_MESSAGE', {
+        ...data,
+        sender: socket.playerName
+      });
+    }
   });
 
   // Handle session creation (host)
