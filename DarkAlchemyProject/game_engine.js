@@ -3,49 +3,8 @@
  * Handles Session State, Phase Transitions, and Staged Reveals.
  */
 
-// --- Robust Communication Class for local file:// support ---
-class DualChannel {
-    constructor(channelName, onMessage) {
-        this.name = channelName;
-        this.onMessage = onMessage;
-
-        // 1. BroadcastChannel
-        if (window.BroadcastChannel) {
-            this.bc = new BroadcastChannel(channelName);
-            this.bc.onmessage = (ev) => this.input(ev.data);
-        }
-
-        // 2. LocalStorage Fallback (Triggered by 'storage' event)
-        // We write to a key: "DA_MSG_<ChannelName>"
-        this.key = `DA_MSG_${channelName}`;
-        window.addEventListener('storage', (ev) => {
-            if (ev.key === this.key && ev.newValue) {
-                try {
-                    const data = JSON.parse(ev.newValue);
-                    // Prevent echoing own messages if possible (timestamp check?)
-                    // For simplicity, we just process it. The logic handles duplicates if needed.
-                    // But actually, storage events ONLY fire in OTHER tabs, not the writer. Perfect.
-                    this.input(data);
-                } catch (e) { console.error("Comms Parse Error", e); }
-            }
-        });
-    }
-
-    send(data) {
-        // Send via BC
-        if (this.bc) this.bc.postMessage(data);
-
-        // Send via LS
-        // We must change the value to trigger the event. Adding a timestamp ensures change.
-        const payload = JSON.stringify(data);
-        // Toggle key to force event even if data is same (unlikely for game moves but possible)
-        localStorage.setItem(this.key, payload);
-    }
-
-    input(data) {
-        if (this.onMessage) this.onMessage(data);
-    }
-}
+// Note: DualChannel is now in websocket-channel.js
+// This file will use it if available, otherwise fall back to inline definition
 
 class GameSession {
     constructor() {
@@ -70,10 +29,52 @@ class GameSession {
         this.protestLevel = 0; // 0-100%
 
         // Initialize Communication
-        this.channel = new DualChannel('dark_alchemy_session', (data) => this.handleMessage(data));
+        // Use WebSocket channel if available, otherwise fall back to local
+        if (typeof DualChannel !== 'undefined') {
+            this.channel = new DualChannel('dark_alchemy_session', (data) => this.handleMessage(data));
+        } else {
+            // Fallback: inline DualChannel (for backward compatibility)
+            this.channel = this.createLocalChannel('dark_alchemy_session', (data) => this.handleMessage(data));
+        }
 
         // Start Lobby UI
         this.updateUI();
+    }
+
+    createLocalChannel(channelName, onMessage) {
+        // Fallback local channel implementation
+        const channel = {
+            name: channelName,
+            onMessage: onMessage,
+            bc: null,
+            key: `DA_MSG_${channelName}`
+        };
+
+        if (window.BroadcastChannel) {
+            channel.bc = new BroadcastChannel(channelName);
+            channel.bc.onmessage = (ev) => channel.input(ev.data);
+        }
+
+        window.addEventListener('storage', (ev) => {
+            if (ev.key === channel.key && ev.newValue) {
+                try {
+                    const data = JSON.parse(ev.newValue);
+                    channel.input(data);
+                } catch (e) { console.error("Comms Parse Error", e); }
+            }
+        });
+
+        channel.send = function(data) {
+            if (this.bc) this.bc.postMessage(data);
+            const payload = JSON.stringify(data);
+            localStorage.setItem(this.key, payload);
+        };
+
+        channel.input = function(data) {
+            if (this.onMessage) this.onMessage(data);
+        };
+
+        return channel;
     }
 
     generateSessionCode() {
@@ -399,6 +400,12 @@ class GameSession {
 
     startLobby() {
         this.state = 'LOBBY';
+        
+        // Create session on server if using WebSocket
+        if (this.channel && typeof this.channel.createSession === 'function') {
+            this.channel.createSession(this.sessionCode);
+        }
+        
         this.updateUI();
     }
 

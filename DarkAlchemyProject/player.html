@@ -230,47 +230,34 @@
         </div>
     </div>
 
+    <!-- Load Socket.io and WebSocket Channel before player logic -->
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <script src="websocket-channel.js"></script>
     <script>
-        // --- Robust Communication Class for local file:// support ---
-        class DualChannel {
-            constructor(channelName, onMessage) {
-                this.name = channelName;
-                this.onMessage = onMessage;
-
-                // 1. BroadcastChannel
-                if (window.BroadcastChannel) {
-                    this.bc = new BroadcastChannel(channelName);
-                    this.bc.onmessage = (ev) => this.input(ev.data);
-                }
-
-                // 2. LocalStorage Fallback
-                this.key = `DA_MSG_${channelName}`;
-                window.addEventListener('storage', (ev) => {
-                    if (ev.key === this.key && ev.newValue) {
-                        try {
-                            const data = JSON.parse(ev.newValue);
-                            this.input(data);
-                        } catch (e) { console.error("Comms Parse Error", e); }
-                    }
-                });
-            }
-
-            send(data) {
-                if (this.bc) this.bc.postMessage(data);
-                // LS Send
-                const payload = JSON.stringify(data);
-                localStorage.setItem(this.key, payload);
-                // Toggle helper key to force event if payload identical
-                localStorage.setItem(this.key + '_TOGGLE', Date.now());
-            }
-
-            input(data) {
-                if (this.onMessage) this.onMessage(data);
-            }
-        }
-
+        // Configure server URL (auto-detect or set manually)
+        // For localhost development: window.GAME_SERVER_URL = 'http://localhost:3000';
+        // For production: window.GAME_SERVER_URL = 'https://your-domain.com';
+        // If not set, will auto-detect based on hostname
+    </script>
+    <script>
         // --- Core Player Logic ---
-        const channel = new DualChannel('dark_alchemy_session', handleMessage);
+        // Use WebSocket channel if available, otherwise fall back to local
+        let channel;
+        if (typeof DualChannel !== 'undefined') {
+            channel = new DualChannel('dark_alchemy_session', handleMessage);
+        } else {
+            // Fallback: create local channel
+            console.warn('WebSocket channel not available, using local mode');
+            channel = {
+                send: (data) => {
+                    if (window.BroadcastChannel) {
+                        const bc = new BroadcastChannel('dark_alchemy_session');
+                        bc.postMessage(data);
+                    }
+                    localStorage.setItem('DA_MSG_dark_alchemy_session', JSON.stringify(data));
+                }
+            };
+        }
 
         let myName = '';
         let myRole = '';
@@ -418,8 +405,14 @@
 
             // Send Join Request
             try {
-                channel.send({ type: 'JOIN_REQUEST', code: code, name: name });
-                console.log('Join request sent successfully');
+                // Use joinSession method if available (WebSocket), otherwise use send
+                if (channel && typeof channel.joinSession === 'function') {
+                    channel.joinSession(code, name);
+                    console.log('Join request sent via WebSocket');
+                } else {
+                    channel.send({ type: 'JOIN_REQUEST', code: code, name: name });
+                    console.log('Join request sent via local channel');
+                }
             } catch (error) {
                 console.error('Error sending join request:', error);
                 alert('Error connecting. Please try again.');
