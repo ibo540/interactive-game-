@@ -429,6 +429,7 @@
                     <div class="qr-frame" id="qr-code-container">
                         <span class="qr-text" id="qr-placeholder">QR CODE</span>
                         <canvas id="qr-code-canvas" width="200" height="200" style="display: none; max-width: 100%; max-height: 100%;"></canvas>
+                        <img id="qr-code-img" style="display: none; max-width: 100%; max-height: 100%; width: 200px; height: 200px;" alt="QR Code">
                     </div>
                     <div class="session-code-display">
                         CODE: <span id="display-code">----</span>
@@ -618,16 +619,11 @@
             function generateQRCode(sessionCode) {
                 const qrContainer = document.getElementById('qr-code-container');
                 const qrCanvas = document.getElementById('qr-code-canvas');
+                const qrImg = document.getElementById('qr-code-img');
                 const qrPlaceholder = document.getElementById('qr-placeholder');
                 
-                if (!qrContainer || !qrCanvas || !sessionCode) {
-                    console.log('QR Code elements not found or no session code:', { qrContainer: !!qrContainer, qrCanvas: !!qrCanvas, sessionCode });
-                    return;
-                }
-
-                // Check if QRCode library is loaded
-                if (typeof QRCode === 'undefined') {
-                    console.error('QRCode library not loaded');
+                if (!qrContainer || !sessionCode) {
+                    console.log('QR Code container not found or no session code:', { qrContainer: !!qrContainer, sessionCode });
                     return;
                 }
 
@@ -637,28 +633,52 @@
 
                 console.log('Generating QR code for:', qrData);
 
-                // Clear canvas first
-                const ctx = qrCanvas.getContext('2d');
-                ctx.clearRect(0, 0, qrCanvas.width, qrCanvas.height);
+                // Primary method: Use QR code API (more reliable)
+                if (qrImg) {
+                    const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}&color=FFD700&bgcolor=000000`;
+                    
+                    qrImg.src = apiUrl;
+                    qrImg.onload = function() {
+                        if (qrPlaceholder) qrPlaceholder.style.display = 'none';
+                        if (qrCanvas) qrCanvas.style.display = 'none';
+                        qrImg.style.display = 'block';
+                        console.log('QR Code generated successfully via API');
+                    };
+                    qrImg.onerror = function() {
+                        console.error('Failed to load QR code image, trying canvas method');
+                        // Fallback to canvas if API fails
+                        tryCanvasMethod(qrData, qrCanvas, qrImg, qrPlaceholder);
+                    };
+                } else {
+                    tryCanvasMethod(qrData, qrCanvas, qrImg, qrPlaceholder);
+                }
+            }
 
-                // Generate QR code
-                QRCode.toCanvas(qrCanvas, qrData, {
-                    width: 200,
-                    height: 200,
-                    colorDark: '#FFD700',
-                    colorLight: '#000000',
-                    correctLevel: QRCode.CorrectLevel.H,
-                    margin: 2
-                }, function (error) {
-                    if (error) {
-                        console.error('QR Code generation error:', error);
-                        return;
+            // Fallback: Try canvas method
+            function tryCanvasMethod(qrData, qrCanvas, qrImg, qrPlaceholder) {
+                if (typeof QRCode !== 'undefined' && qrCanvas) {
+                    try {
+                        QRCode.toCanvas(qrCanvas, qrData, {
+                            width: 200,
+                            height: 200,
+                            colorDark: '#FFD700',
+                            colorLight: '#000000',
+                            correctLevel: QRCode.CorrectLevel.H,
+                            margin: 2
+                        }, function (error) {
+                            if (error) {
+                                console.error('QR Code canvas error:', error);
+                            } else {
+                                if (qrPlaceholder) qrPlaceholder.style.display = 'none';
+                                if (qrImg) qrImg.style.display = 'none';
+                                qrCanvas.style.display = 'block';
+                                console.log('QR Code generated successfully on canvas');
+                            }
+                        });
+                    } catch (e) {
+                        console.error('QR Code generation exception:', e);
                     }
-                    // Hide placeholder and show QR code
-                    if (qrPlaceholder) qrPlaceholder.style.display = 'none';
-                    qrCanvas.style.display = 'block';
-                    console.log('QR Code generated successfully');
-                });
+                }
             }
 
             // --- PIE CHART RENDERER ---
