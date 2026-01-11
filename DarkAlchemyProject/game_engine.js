@@ -32,6 +32,12 @@ class GameSession {
         // Use WebSocket channel if available, otherwise fall back to local
         if (typeof DualChannel !== 'undefined') {
             this.channel = new DualChannel('dark_alchemy_session', (data) => this.handleMessage(data));
+
+            // CRITICAL FIX: Register session on server IMMEDIATELY so players can join
+            if (this.channel.createSession) {
+                console.log('Creating session on server:', this.sessionCode);
+                this.channel.createSession(this.sessionCode);
+            }
         } else {
             // Fallback: inline DualChannel (for backward compatibility)
             this.channel = this.createLocalChannel('dark_alchemy_session', (data) => this.handleMessage(data));
@@ -64,13 +70,13 @@ class GameSession {
             }
         });
 
-        channel.send = function(data) {
+        channel.send = function (data) {
             if (this.bc) this.bc.postMessage(data);
             const payload = JSON.stringify(data);
             localStorage.setItem(this.key, payload);
         };
 
-        channel.input = function(data) {
+        channel.input = function (data) {
             if (this.onMessage) this.onMessage(data);
         };
 
@@ -400,12 +406,12 @@ class GameSession {
 
     startLobby() {
         this.state = 'LOBBY';
-        
+
         // Create session on server if using WebSocket
         if (this.channel && typeof this.channel.createSession === 'function') {
             this.channel.createSession(this.sessionCode);
         }
-        
+
         this.updateUI();
     }
 
