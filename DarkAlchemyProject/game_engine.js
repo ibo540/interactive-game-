@@ -92,12 +92,18 @@ class GameSession {
         if (!msg || !msg.type) return;
 
         if (msg.type === 'JOIN_REQUEST') {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/337209b4-c064-4f4f-9d1d-83736bceeff3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game_engine.js:87',message:'Game engine received JOIN_REQUEST',data:{msgCode:msg.code,msgName:msg.name,engineSessionCode:this.sessionCode,engineState:this.state,currentPlayersCount:this.players.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
             if (this.state === 'LOBBY' && msg.code === this.sessionCode) {
                 // Prevent duplicate joins
                 if (this.players.some(p => p.name === msg.name)) return;
 
                 // Accept Player
                 this.players.push({ name: msg.name, role: null });
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/337209b4-c064-4f4f-9d1d-83736bceeff3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game_engine.js:95',message:'Game engine added player',data:{playerName:msg.name,newPlayersCount:this.players.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+                // #endregion
 
                 // Confirm Join to Player
                 this.channel.send({ type: 'JOIN_SUCCESS', name: msg.name });

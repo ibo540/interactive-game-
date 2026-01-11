@@ -43,6 +43,12 @@ io.on('connection', (socket) => {
 
   // Handle join request
   socket.on('JOIN_REQUEST', (data) => {
+    // #region agent log
+    const fs = require('fs');
+    const logPath = path.join(__dirname, '.cursor', 'debug.log');
+    const logEntry = JSON.stringify({location:'server.js:45',message:'Server received JOIN_REQUEST',data:{sessionCode:data?.code?.toUpperCase(),playerName:data?.name,socketId:socket.id,requestOrigin:socket.handshake.headers.origin,activeSessions:Array.from(gameSessions.keys())},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B,C'})+'\n';
+    try { fs.appendFileSync(logPath, logEntry); } catch(e) {}
+    // #endregion
     const { code, name } = data;
     if (!code || !name) {
       socket.emit('ERROR', { message: 'Code and name required' });
@@ -93,8 +99,8 @@ io.on('connection', (socket) => {
     // #region agent log
     const fs3 = require('fs');
     const logPath3 = path.join(__dirname, '.cursor', 'debug.log');
-    const logEntry3 = JSON.stringify({location:'server.js:81',message:'Server broadcasting STATE_UPDATE',data:{eventName:'STATE_UPDATE',targetRoom:sessionCode,payload:stateUpdate,playerCount:session.players.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C,D'})+'\n';
-    fs3.appendFileSync(logPath3, logEntry3);
+    const logEntry3 = JSON.stringify({location:'server.js:86',message:'Server broadcasting STATE_UPDATE',data:{eventName:'STATE_UPDATE',targetRoom:sessionCode,payload:stateUpdate,playerCount:session.players.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C,D'})+'\n';
+    try { fs3.appendFileSync(logPath3, logEntry3); } catch(e) {}
     // #endregion
     io.to(sessionCode).emit('STATE_UPDATE', stateUpdate);
   });
@@ -137,6 +143,12 @@ io.on('connection', (socket) => {
     socket.isHost = true;
 
     console.log(`Session ${sessionCode} created by ${socket.id}`);
+    // #region agent log
+    const fs5 = require('fs');
+    const logPath5 = path.join(__dirname, '.cursor', 'debug.log');
+    const logEntry5 = JSON.stringify({location:'server.js:130',message:'Server created session',data:{sessionCode:sessionCode,hostSocketId:socket.id,roomName:sessionCode},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})+'\n';
+    try { fs5.appendFileSync(logPath5, logEntry5); } catch(e) {}
+    // #endregion
 
     socket.emit('SESSION_CREATED', { code: sessionCode });
   });
