@@ -355,20 +355,30 @@
             }
 
             // Set timeout to show error if connection doesn't complete
-            connectionTimeoutId = setTimeout(() => {
-                console.warn('Connection timeout - no response received');
-                const errorMsg = document.getElementById('error-msg');
-                if (errorMsg) {
-                    errorMsg.innerText = 'Connection timeout. Make sure the host has created a session and you\'re using the correct code.';
-                    errorMsg.style.display = 'block';
-                }
-                if (btnJoin) {
-                    btnJoin.disabled = false;
-                    btnJoin.style.opacity = '1';
-                    const btnText = btnJoin.querySelector('.btn-text');
-                    if (btnText) btnText.innerText = 'ENTER';
-                }
-            }, 10000); // 10 second timeout
+            // Only set timeout if we're not in pure local mode (BroadcastChannel only)
+            const isLocalOnly = !channel.connected && typeof channel.joinSession !== 'function' && channel.bc;
+            if (!isLocalOnly) {
+                connectionTimeoutId = setTimeout(() => {
+                    console.warn('Connection timeout - no response received');
+                    const errorMsg = document.getElementById('error-msg');
+                    if (errorMsg) {
+                        // Check if we're trying to connect cross-device without server
+                        const isCrossDevice = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+                        if (isCrossDevice) {
+                            errorMsg.innerText = 'Cross-device connection requires a server. Please ensure the host has created a session on the same device, or set up a WebSocket server.';
+                        } else {
+                            errorMsg.innerText = 'Connection timeout. Make sure the host has created a session and you\'re using the correct code.';
+                        }
+                        errorMsg.style.display = 'block';
+                    }
+                    if (btnJoin) {
+                        btnJoin.disabled = false;
+                        btnJoin.style.opacity = '1';
+                        const btnText = btnJoin.querySelector('.btn-text');
+                        if (btnText) btnText.innerText = 'ENTER';
+                    }
+                }, 5000); // Reduced to 5 seconds
+            }
 
             // Send Join Request
             try {
