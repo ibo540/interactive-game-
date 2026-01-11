@@ -667,14 +667,38 @@
                     }
 
                     // CRITICAL FIX: Sync player names from server STATE_UPDATE
+                    let playersUpdated = false;
                     if (msg.sessionCode === window.engine.sessionCode && msg.players !== undefined) {
                         // Update engine players with actual names from server
                         if (msg.players && Array.isArray(msg.players)) {
                             // Server sent actual player names - use them
                             window.engine.players = msg.players.map(name => ({ name: name, role: null }));
+                            playersUpdated = true;
                             // #region agent log
                             fetch('http://127.0.0.1:7242/ingest/337209b4-c064-4f4f-9d1d-83736bceeff3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'session_control.html:697',message:'Professor UI synced player names from server',data:{updatedPlayerCount:window.engine.players.length,playerNames:window.engine.players.map(p=>p.name)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
                             // #endregion
+                            
+                            // Immediately update UI when players are synced
+                            const pCount = document.getElementById('player-count');
+                            if (pCount) pCount.innerText = window.engine.players.length;
+
+                            // Update player list display
+                            const playerListEl = document.getElementById('player-list');
+                            if (playerListEl) {
+                                playerListEl.innerHTML = ''; // Clear existing list
+                                window.engine.players.forEach(player => {
+                                    const li = document.createElement('li');
+                                    li.className = 'player-item-joined';
+                                    li.innerText = player.name;
+                                    playerListEl.appendChild(li);
+                                });
+                            }
+
+                            // Always render pie chart when players are updated (especially in LOBBY state)
+                            console.log('🔄 Players synced, rendering pie chart. State:', window.engine.state, 'Players:', window.engine.players.map(p => p.name));
+                            if (window.engine.state === 'LOBBY' || window.engine.state === 'SETUP') {
+                                renderPieChart(window.engine.players);
+                            }
                         }
                     }
 

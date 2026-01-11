@@ -164,6 +164,16 @@ class GameSession {
                     }
                 }
                 this.updateUI();
+                
+                // CRITICAL: Also trigger UI update in session_control.html if handleUiUpdate exists
+                // This ensures the pie chart is rendered when server sends STATE_UPDATE
+                if (typeof window !== 'undefined' && typeof window.handleUiUpdate === 'function') {
+                    // Forward the STATE_UPDATE to the UI handler with updated player data
+                    window.handleUiUpdate({
+                        ...msg,
+                        players: this.players.map(p => p.name) // Ensure players array is included
+                    });
+                }
             }
         }
     }
