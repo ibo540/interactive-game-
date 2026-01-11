@@ -72,6 +72,43 @@
         }
 
 
+        /* Server Status Indicator */
+        #server-status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            padding: 5px 10px;
+            border-radius: 15px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #333;
+            color: #666;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.8rem;
+            z-index: 10001;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        #server-status.connected {
+            border-color: #00ff00;
+            color: #00ff00;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+        }
+
+        #server-status.disconnected {
+            border-color: #ff0000;
+            color: #ff0000;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: currentColor;
+        }
+
         /* Pop Animation for Selected Labels */
         @keyframes popText {
             0% {
@@ -428,8 +465,11 @@
                 <div class="access-card">
                     <div class="qr-frame" id="qr-code-container">
                         <span class="qr-text" id="qr-placeholder">QR CODE</span>
-                        <canvas id="qr-code-canvas" width="200" height="200" style="display: none; max-width: 100%; max-height: 100%;"></canvas>
-                        <img id="qr-code-img" style="display: none; max-width: 100%; max-height: 100%; width: 200px; height: 200px;" alt="QR Code">
+                        <canvas id="qr-code-canvas" width="200" height="200"
+                            style="display: none; max-width: 100%; max-height: 100%;"></canvas>
+                        <img id="qr-code-img"
+                            style="display: none; max-width: 100%; max-height: 100%; width: 200px; height: 200px;"
+                            alt="QR Code">
                     </div>
                     <div class="session-code-display">
                         CODE: <span id="display-code">----</span>
@@ -546,8 +586,13 @@
     </div>
 
 
+    <!-- Server Status Indicator -->
+    <div id="server-status" class="disconnected">
+        <div class="status-dot"></div>
+        <span id="status-text">Disconnected</span>
+    </div>
+
     <!-- Scripts -->
-    <!-- Socket.io client for WebSocket support -->
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
     <script src="websocket-channel.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
@@ -556,6 +601,19 @@
     <script>
         // Configure server URL
         window.GAME_SERVER_URL = 'https://dark-alchemy-server.onrender.com';
+
+        // Status Monitor
+        setInterval(() => {
+            const statusEl = document.getElementById('server-status');
+            const textEl = document.getElementById('status-text');
+            if (window.engine && window.engine.channel && window.engine.channel.connected) {
+                statusEl.className = 'connected';
+                textEl.innerText = 'Connected';
+            } else {
+                statusEl.className = 'disconnected';
+                textEl.innerText = 'Disconnected';
+            }
+        }, 1000);
     </script>
     <script>
 
@@ -628,7 +686,7 @@
                 const qrCanvas = document.getElementById('qr-code-canvas');
                 const qrImg = document.getElementById('qr-code-img');
                 const qrPlaceholder = document.getElementById('qr-placeholder');
-                
+
                 if (!qrContainer || !sessionCode) {
                     console.log('QR Code container not found or no session code:', { qrContainer: !!qrContainer, sessionCode });
                     return;
@@ -643,15 +701,15 @@
                 // Primary method: Use QR code API (more reliable)
                 if (qrImg) {
                     const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}&color=FFFFFF&bgcolor=000000`;
-                    
+
                     qrImg.src = apiUrl;
-                    qrImg.onload = function() {
+                    qrImg.onload = function () {
                         if (qrPlaceholder) qrPlaceholder.style.display = 'none';
                         if (qrCanvas) qrCanvas.style.display = 'none';
                         qrImg.style.display = 'block';
                         console.log('QR Code generated successfully via API');
                     };
-                    qrImg.onerror = function() {
+                    qrImg.onerror = function () {
                         console.error('Failed to load QR code image, trying canvas method');
                         // Fallback to canvas if API fails
                         tryCanvasMethod(qrData, qrCanvas, qrImg, qrPlaceholder);
@@ -930,7 +988,7 @@
                     document.getElementById('screen-setup').classList.add('hidden');
                     document.getElementById('screen-lobby').classList.remove('hidden');
                     window.engine.startLobby();
-                    
+
                     // Generate QR code after lobby is shown
                     setTimeout(() => {
                         if (window.engine && window.engine.sessionCode) {
@@ -982,116 +1040,7 @@
             window.handleUiUpdate({ type: 'STATE_UPDATE', phase: 'SETUP', round: 0 });
         });
 
-        // --- BAR CHART VISUALIZATION (BUDGET) ---
-        function drawBudgetBars(data) {
-            const container = document.getElementById('leader-status');
-            const main = document.querySelector('.dashboard-main');
-            
-            // Ensure parent has relative positioning
-            if (main) {
-                main.style.position = 'relative';
-            }
-            
-            container.innerHTML = ''; // Clear content
-            container.classList.remove('hidden'); // Make sure it's visible
 
-            // Position immediately on left side, upper portion
-            container.style.position = 'absolute';
-            container.style.top = '15%'; // Upper portion to leave room below
-            container.style.left = '2vw'; // Further left to create space
-            container.style.transform = 'translateY(0)'; // No vertical centering, just top positioning
-            container.style.width = '450px'; // Slightly narrower to prevent overlap
-            container.style.maxWidth = '450px';
-            container.style.zIndex = '10';
-            container.style.opacity = '1';
-            container.style.transition = 'opacity 0.5s ease';
-            container.style.background = 'rgba(0, 0, 0, 0.7)';
-            container.style.border = '1px solid rgba(255, 215, 0, 0.3)';
-            container.style.borderRadius = '8px';
-            container.style.padding = '20px';
-            container.style.boxShadow = '0 0 30px rgba(0, 0, 0, 0.8)';
-
-            // Title
-            const title = document.createElement('h2');
-            title.style.fontFamily = "'Cinzel', serif";
-            title.style.color = "#888"; // Match Treasury Reserves Label Color
-            title.style.fontSize = "1.2rem";
-            title.style.marginBottom = "20px";
-            title.style.letterSpacing = "3px";
-            title.style.textShadow = "none";
-            title.innerText = "DECREE ANNOUNCED";
-            container.appendChild(title);
-
-            // Bar Container
-            const chartBox = document.createElement('div');
-            chartBox.style.width = '100%'; // Use full container width
-            chartBox.style.maxWidth = '500px';
-            chartBox.style.display = 'flex';
-            chartBox.style.flexDirection = 'column';
-            chartBox.style.gap = '12px';
-
-            // Render Bars
-            // Total is assumed 100
-
-            data.forEach((item, i) => {
-                const row = document.createElement('div');
-                row.style.display = 'flex';
-                row.style.alignItems = 'center';
-                row.style.height = '35px'; // Slightly taller
-                row.style.gap = '15px';
-
-                // Label
-                const label = document.createElement('div');
-                label.style.width = '120px';
-                label.style.textAlign = 'right';
-                label.style.fontFamily = "'Cinzel', serif";
-                label.style.color = '#ccc';
-                label.style.fontSize = '0.9rem';
-                label.innerText = item.label;
-
-                // Bar Track
-                const track = document.createElement('div');
-                track.style.flex = '1';
-                track.style.background = 'rgba(255,255,255,0.05)';
-                track.style.height = '100%';
-                track.style.display = 'flex';
-                track.style.alignItems = 'center';
-                track.style.position = 'relative';
-                track.style.borderLeft = `2px solid ${item.color}`;
-
-                // Bar Fill
-                const fill = document.createElement('div');
-                fill.style.height = '60%';
-                fill.style.background = `linear-gradient(90deg, ${item.color} 0%, transparent 100%)`;
-                fill.style.width = '0%'; // Start at 0
-                fill.style.transition = `width 1s cubic-bezier(0.23, 1, 0.32, 1) ${i * 0.1}s`;
-                fill.style.boxShadow = `0 0 15px ${item.color}`; // Stronger glow
-
-                // Value (Percent)
-                const val = document.createElement('div');
-                val.style.position = 'absolute';
-                val.style.right = '10px'; // Inside track
-                val.style.color = '#fff';
-                val.style.fontFamily = "'Roboto Mono'";
-                val.style.fontSize = '1.1rem'; // Larger text
-                val.style.fontWeight = 'bold';
-                val.innerText = `${item.value}%`; // Display as Percent
-                val.style.textShadow = '0 0 5px rgba(0,0,0,0.8)';
-
-                track.appendChild(fill);
-                track.appendChild(val);
-                row.appendChild(label);
-                row.appendChild(track);
-                chartBox.appendChild(row);
-
-                setTimeout(() => {
-                    // Fill width based on percentage (since total is 100)
-                    fill.style.width = item.value + '%';
-                }, 50);
-            });
-
-            container.appendChild(chartBox);
-        }
 
         // --- ELITE VOTES VISUALIZATION ---
         function drawEliteVotes(votes) {
