@@ -72,6 +72,12 @@ io.on('connection', (socket) => {
     socket.playerName = name;
 
     console.log(`Player ${name} joined session ${sessionCode}`);
+    // #region agent log
+    const fs2 = require('fs');
+    const logPath2 = path.join(__dirname, '.cursor', 'debug.log');
+    const logEntry2 = JSON.stringify({location:'server.js:69',message:'Server persisted player to session',data:{sessionCode:sessionCode,playerName:name,socketId:socket.id,playerCount:session.players.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n';
+    fs2.appendFileSync(logPath2, logEntry2);
+    // #endregion
     console.log(`Sending JOIN_SUCCESS to player ${name}`);
 
     // Confirm join to player
@@ -79,11 +85,18 @@ io.on('connection', (socket) => {
     console.log(`JOIN_SUCCESS sent to ${socket.id}`);
 
     // Broadcast player count update to all in session
-    io.to(sessionCode).emit('STATE_UPDATE', {
+    const stateUpdate = {
       type: 'STATE_UPDATE',
       playerCount: session.players.size,
       sessionCode: sessionCode
-    });
+    };
+    // #region agent log
+    const fs3 = require('fs');
+    const logPath3 = path.join(__dirname, '.cursor', 'debug.log');
+    const logEntry3 = JSON.stringify({location:'server.js:81',message:'Server broadcasting STATE_UPDATE',data:{eventName:'STATE_UPDATE',targetRoom:sessionCode,payload:stateUpdate,playerCount:session.players.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C,D'})+'\n';
+    fs3.appendFileSync(logPath3, logEntry3);
+    // #endregion
+    io.to(sessionCode).emit('STATE_UPDATE', stateUpdate);
   });
 
   // Handle game messages (forward to all in session)

@@ -406,12 +406,15 @@ class GameSession {
 
     startLobby() {
         this.state = 'LOBBY';
-
+        
         // Create session on server if using WebSocket
         if (this.channel && typeof this.channel.createSession === 'function') {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/337209b4-c064-4f4f-9d1d-83736bceeff3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'game_engine.js:407',message:'Host creating session on server',data:{sessionCode:this.sessionCode,channelConnected:this.channel.connected,hasCreateSession:typeof this.channel.createSession==='function'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+            // #endregion
             this.channel.createSession(this.sessionCode);
         }
-
+        
         this.updateUI();
     }
 

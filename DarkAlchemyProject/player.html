@@ -343,6 +343,10 @@
             
             console.log('Sending join request to channel...'); // Debug log
             console.log('Channel object:', channel); // Debug log
+            
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/337209b4-c064-4f4f-9d1d-83736bceeff3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'player.html:342',message:'Student join request - BEFORE send',data:{sessionCode:code,playerName:name,serverUrl:window.GAME_SERVER_URL,channelConnected:channel?.connected,channelHasJoinSession:typeof channel?.joinSession==='function',deviceOrigin:window.location.origin,deviceHostname:window.location.hostname},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
+            // #endregion
 
             // Show loading state
             if (btnJoin) {
@@ -388,9 +392,15 @@
                 if (typeof channel.joinSession === 'function') {
                     channel.joinSession(code, name);
                     console.log('Join request sent via WebSocket');
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/337209b4-c064-4f4f-9d1d-83736bceeff3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'player.html:389',message:'Student join request - SENT via WebSocket',data:{sessionCode:code,playerName:name,method:'joinSession'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                    // #endregion
                 } else if (typeof channel.send === 'function') {
                     channel.send({ type: 'JOIN_REQUEST', code: code, name: name });
                     console.log('Join request sent via local channel');
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/337209b4-c064-4f4f-9d1d-83736bceeff3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'player.html:392',message:'Student join request - SENT via local channel',data:{sessionCode:code,playerName:name,method:'send'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                    // #endregion
                     
                     // Note: Cross-device detection removed - let the timeout handle it with better messaging
                 } else {

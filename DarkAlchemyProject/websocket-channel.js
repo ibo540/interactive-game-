@@ -80,6 +80,9 @@ class DualChannel {
                 console.log('✅ Connected to game server');
                 this.connected = true;
                 this.reconnectAttempts = 0;
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/337209b4-c064-4f4f-9d1d-83736bceeff3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'websocket-channel.js:72',message:'WebSocket connected to server',data:{serverUrl:this.serverUrl,socketId:this.socket?.id,currentSessionCode:this.currentSessionCode},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+                // #endregion
 
                 // Pitality Check: Identify as session host if we have a code
                 if (this.currentSessionCode) {
