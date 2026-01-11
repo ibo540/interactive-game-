@@ -26,16 +26,19 @@ class DualChannel {
     detectServerUrl() {
         // Check for environment variable or config
         if (window.GAME_SERVER_URL) {
+            console.log('Using configured server URL:', window.GAME_SERVER_URL);
             return window.GAME_SERVER_URL;
         }
         
         // Auto-detect: if running on localhost, use local server
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            console.log('Auto-detected localhost, using local server');
             return 'http://localhost:3000';
         }
         
         // For production, use same origin (server should be on same domain)
         // Or set window.GAME_SERVER_URL in your HTML
+        console.warn('No server URL configured. Falling back to local mode (same device only).');
         return null; // Will fall back to local mode
     }
 
@@ -57,11 +60,13 @@ class DualChannel {
 
     connectWebSocket() {
         try {
+            console.log('Attempting to connect to server:', this.serverUrl);
             this.socket = io(this.serverUrl, {
                 transports: ['websocket', 'polling'],
                 reconnection: true,
                 reconnectionDelay: 1000,
-                reconnectionAttempts: this.maxReconnectAttempts
+                reconnectionAttempts: this.maxReconnectAttempts,
+                timeout: 20000 // 20 second timeout for Render free tier
             });
 
             this.socket.on('connect', () => {
