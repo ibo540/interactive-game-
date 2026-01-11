@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <!-- Gavel Head -->
+    <path d="M20,40 L80,40 L80,60 L20,60 Z" stroke="#ffffff" stroke-width="3" fill="none" />
+    <line x1="15" y1="40" x2="15" y2="60" stroke="#ffffff" stroke-width="3"/>
+    <line x1="85" y1="40" x2="85" y2="60" stroke="#ffffff" stroke-width="3"/>
+    <!-- Handle -->
+    <path d="M50,60 L50,90" stroke="#ffffff" stroke-width="3" fill="none"/>
+    <!-- Sound Block -->
+    <path d="M30,90 L70,90" stroke="#ffffff" stroke-width="3" fill="none"/>
+</svg>

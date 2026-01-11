@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 80">
+    <defs>
+        <linearGradient id="btnGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:rgba(255,255,255,0.05)" />
+            <stop offset="50%" style="stop-color:rgba(255,255,255,0.2)" />
+            <stop offset="100%" style="stop-color:rgba(255,255,255,0.05)" />
+        </linearGradient>
+    </defs>
+    <!-- Main Shape -->
+    <path d="M20,10 L280,10 L290,40 L280,70 L20,70 L10,40 Z" fill="url(#btnGrad)" stroke="#ffffff" stroke-width="1.5"/>
+    <!-- Accents -->
+    <circle cx="15" cy="40" r="2" fill="#ffffff"/>
+    <circle cx="285" cy="40" r="2" fill="#ffffff"/>
+    <line x1="40" y1="20" x2="260" y2="20" stroke="#ffffff" stroke-width="0.5" opacity="0.5"/>
+    <line x1="40" y1="60" x2="260" y2="60" stroke="#ffffff" stroke-width="0.5" opacity="0.5"/>
+</svg>

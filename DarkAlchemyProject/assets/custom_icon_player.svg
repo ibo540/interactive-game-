@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <!-- Pawn Head -->
+    <circle cx="50" cy="25" r="15" stroke="#ffffff" stroke-width="3" fill="none"/>
+    <!-- Pawn Body -->
+    <path d="M35,45 Q50,45 65,45 Q60,65 50,65 Q40,65 35,45" stroke="#ffffff" stroke-width="3" fill="none"/>
+    <!-- Pawn Base -->
+    <path d="M30,85 L70,85 L60,65 L40,65 Z" stroke="#ffffff" stroke-width="3" fill="none"/>
+</svg>

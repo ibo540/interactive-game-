@@ -1,0 +1,436 @@
+/**
+ * HETAIROI - Game Engine
+ * Handles Session State, Phase Transitions, and Staged Reveals.
+ */
+
+// --- Robust Communication Class for local file:// support ---
+class DualChannel {
+    constructor(channelName, onMessage) {
+        this.name = channelName;
+        this.onMessage = onMessage;
+
+        // 1. BroadcastChannel
+        if (window.BroadcastChannel) {
+            this.bc = new BroadcastChannel(channelName);
+            this.bc.onmessage = (ev) => this.input(ev.data);
+        }
+
+        // 2. LocalStorage Fallback (Triggered by 'storage' event)
+        // We write to a key: "DA_MSG_<ChannelName>"
+        this.key = `DA_MSG_${channelName}`;
+        window.addEventListener('storage', (ev) => {
+            if (ev.key === this.key && ev.newValue) {
+                try {
+                    const data = JSON.parse(ev.newValue);
+                    // Prevent echoing own messages if possible (timestamp check?)
+                    // For simplicity, we just process it. The logic handles duplicates if needed.
+                    // But actually, storage events ONLY fire in OTHER tabs, not the writer. Perfect.
+                    this.input(data);
+                } catch (e) { console.error("Comms Parse Error", e); }
+            }
+        });
+    }
+
+    send(data) {
+        // Send via BC
+        if (this.bc) this.bc.postMessage(data);
+
+        // Send via LS
+        // We must change the value to trigger the event. Adding a timestamp ensures change.
+        const payload = JSON.stringify(data);
+        // Toggle key to force event even if data is same (unlikely for game moves but possible)
+        localStorage.setItem(this.key, payload);
+    }
+
+    input(data) {
+        if (this.onMessage) this.onMessage(data);
+    }
+}
+
+class GameSession {
+    constructor() {
+        this.state = 'LOBBY';
+        this.players = [];
+        this.sessionCode = this.generateSessionCode();
+        this.roles = {
+            leader: null,
+            elites: [],
+            citizens: []
+        };
+
+        // Game Loop State
+        this.phase = 'ALLOCATION';
+        this.timer = 0;
+        this.timerInterval = null;
+        this.roundNumber = 0;
+
+        // Mechanic State
+        this.votes = [];
+        this.lastAllocation = { military: 0, intelligence: 0, interior: 0, economy: 0, media: 0 };
+        this.protestLevel = 0; // 0-100%
+
+        // Initialize Communication
+        this.channel = new DualChannel('dark_alchemy_session', (data) => this.handleMessage(data));
+
+        // Start Lobby UI
+        this.updateUI();
+    }
+
+    generateSessionCode() {
+        return Math.random().toString(36).substring(2, 6).toUpperCase();
+    }
+
+    // --- Communication Handling ---
+    handleMessage(msg) {
+        if (!msg || !msg.type) return;
+
+        if (msg.type === 'JOIN_REQUEST') {
+            if (this.state === 'LOBBY' && msg.code === this.sessionCode) {
+                // Prevent duplicate joins
+                if (this.players.some(p => p.name === msg.name)) return;
+
+                // Accept Player
+                this.players.push({ name: msg.name, role: null });
+
+                // Confirm Join to Player
+                this.channel.send({ type: 'JOIN_SUCCESS', name: msg.name });
+
+                // Update All UIs (Lobby Count)
+                this.broadcastState();
+            }
+        } else if (msg.type === 'ALLOCATION_SUBMIT') {
+            if (this.phase === 'ALLOCATION') {
+                console.log("Allocation Received:", msg.data);
+                this.lastAllocation = msg.data;
+                this.nextPhase();
+            }
+        } else if (msg.type === 'VOTE_SUBMIT') {
+            if (this.phase === 'VOTING') {
+                // Ensure unique vote per player (replace if exists)
+                const existingIdx = this.votes.findIndex(v => v.voter === msg.name);
+                if (existingIdx >= 0) {
+                    this.votes[existingIdx] = { voter: msg.name, vote: msg.vote, coupType: msg.coupType, candidate: msg.candidate };
+                } else {
+                    this.votes.push({ voter: msg.name, vote: msg.vote, coupType: msg.coupType, candidate: msg.candidate });
+                }
+
+                // Broadcase Vote Count (Anonymous) to update UI if needed (Not implemented yet)
+
+                // Check if all elites voted (5 Elites)
+                // In production, should check this.roles.elites.length
+                if (this.votes.length >= this.roles.elites.length) {
+                    this.nextPhase();
+                }
+            }
+        } else if (msg.type === 'PROTEST') {
+            // Increase protest level (Decay is handled in timer)
+            this.protestLevel = Math.min(100, this.protestLevel + 5);
+            // Broadcast immediate update for responsiveness
+            this.channel.send({ type: 'PROTEST_LEVEL', level: this.protestLevel });
+        }
+    }
+
+    // --- State Broadcasting ---
+    broadcastState() {
+        const stateMsg = {
+            type: 'STATE_UPDATE',
+            sessionCode: this.sessionCode,
+            phase: this.phase,
+            timeRemaining: this.timeRemaining,
+            playerCount: this.players.length,
+            round: this.roundNumber,
+            allocation: this.lastAllocation,
+            roles: this.roles // Send role specific data if needed, or filter
+        };
+        this.channel.send(stateMsg);
+        this.updateUI();
+    }
+
+    // --- Core Game Loop ---
+    beginSimulation() {
+        if (this.players.length < 3) {
+            // alert("Need at least 3 players to start!");
+            // For testing, allowing 1 player override
+        }
+
+        this.state = 'ACTIVE';
+        this.roundNumber = 1;
+        this.assignRoles();
+        this.startPhase('ALLOCATION');
+    }
+
+    assignRoles() {
+        // Shuffle players
+        const shuffled = [...this.players].sort(() => 0.5 - Math.random());
+
+        // 1. Leader
+        this.roles.leader = shuffled[0];
+        this.roles.leader.role = 'Leader';
+
+        // 2. Elites (5 Fixed)
+        const eliteTypes = [
+            { id: 'General', name: 'Military', weight: 3 },
+            { id: 'SpyChief', name: 'Intelligence', weight: 2 },
+            { id: 'PoliceChief', name: 'Interior', weight: 2 },
+            { id: 'Oligarch', name: 'Economy', weight: 1 },
+            { id: 'Propagandist', name: 'Media', weight: 1 }
+        ];
+
+        this.roles.elites = [];
+        let pIndex = 1;
+
+        // Assign Real Players to Elites first
+        for (let i = 0; i < eliteTypes.length; i++) {
+            if (pIndex < shuffled.length) {
+                const p = shuffled[pIndex++];
+                p.role = eliteTypes[i].name; // Just string name
+                this.roles.elites.push({
+                    name: p.name,
+                    role: eliteTypes[i].name,
+                    weight: eliteTypes[i].weight,
+                    type: eliteTypes[i].id
+                });
+            } else {
+                // Fill with Bots if not enough players? 
+                // For Minimum Viable, we assume players fill or we handle empty
+            }
+        }
+
+        // 3. Citizens (Rest)
+        this.roles.citizens = [];
+        while (pIndex < shuffled.length) {
+            const p = shuffled[pIndex++];
+            p.role = 'Citizen';
+            // Assign random class
+            const classes = ['Upper Class', 'Middle Class', 'Lower Class'];
+            p.class = classes[Math.floor(Math.random() * classes.length)];
+            this.roles.citizens.push(p);
+        }
+
+        // Notify Players of Roles
+        this.players.forEach(p => {
+            // Find detailed role info
+            let roleData = { role: p.role };
+            if (p.role === 'Citizen') {
+                const c = this.roles.citizens.find(c => c.name === p.name);
+                if (c) roleData.className = c.class;
+            }
+            if (this.roles.elites.find(e => e.name === p.name)) {
+                const e = this.roles.elites.find(e => e.name === p.name);
+                roleData.weight = e.weight;
+            }
+
+            this.channel.send({
+                type: 'ROLE_ASSIGNMENT',
+                target: p.name,
+                role: p.role,
+                details: roleData
+            });
+        });
+    }
+
+    startPhase(phase) {
+        clearInterval(this.timerInterval);
+
+        // Resolution Logic Check
+        if (phase === 'RESOLUTION' && this.phase === 'VOTING') {
+            this.resolveRound();
+        }
+
+        this.phase = phase;
+        let duration = 0;
+
+        switch (phase) {
+            case 'ALLOCATION':
+                duration = 90;
+                this.votes = [];
+                this.protestLevel = 0;
+                break;
+            case 'VOTING':
+                duration = 60;
+                break;
+            case 'RESOLUTION':
+                duration = 20;
+                break;
+            default:
+                duration = 10;
+        }
+
+        this.timeRemaining = duration;
+        this.updateTimerUI(duration);
+        this.broadcastState();
+        this.startTimer();
+    }
+
+    resolveRound() {
+        let outcomeMessage = `Round ${this.roundNumber} Result: `;
+
+        // Calculate Coup Power
+        let betrayWeight = 0;
+        let loyalWeight = 0;
+        let candidate = null;
+
+        // Sum Votes
+        this.votes.forEach(v => {
+            const elite = this.roles.elites.find(e => e.name === v.voter);
+            let weight = elite ? elite.weight : 0;
+
+            // External Offer Bonus
+            if (v.coupType === 'EXTERNAL') {
+                weight += 1.5; // Massive Bonus for Foreign Intervention
+            }
+
+            if (v.vote === 'BETRAY') {
+                betrayWeight += weight;
+                if (v.candidate) candidate = v.candidate;
+            } else {
+                loyalWeight += weight;
+            }
+        });
+
+        // Determine Outcome
+        // If External involved, threshold is lower? Or just weight added.
+        const totalWeight = betrayWeight + loyalWeight;
+        const rebelPercent = totalWeight > 0 ? Math.round((betrayWeight / totalWeight) * 100) : 0;
+        const loyalPercent = 100 - rebelPercent;
+
+        const coupSuccess = betrayWeight > loyalWeight;
+
+        let purgedList = [];
+        let pardonedList = [];
+
+        if (coupSuccess) {
+            outcomeMessage += "COUP SUCCEEDED! The Leader has been overthrown.";
+            // Determine New Leader
+            let newLeaderName = candidate;
+
+            // If no candidate specified, highest weight betrayer
+            if (!newLeaderName) {
+                const betrayers = this.votes.filter(v => v.vote === 'BETRAY');
+                if (betrayers.length > 0) {
+                    // Find biggest traitor
+                    betrayers.sort((a, b) => {
+                        // Priority to Initiators? 
+                        return 0; // random for now
+                    });
+                    newLeaderName = betrayers[0].voter;
+                } else {
+                    newLeaderName = "The Military"; // Fallback
+                }
+            }
+            outcomeMessage += ` All hail the new Leader: ${newLeaderName}!`;
+
+        } else {
+            outcomeMessage += "The Leader survives. Order is restored.";
+
+            // Repression Logic
+            const betrayers = this.votes.filter(v => v.vote === 'BETRAY');
+
+            // Automatic Purge of Top 2 Traitors (by Weight)
+            // Sort by weight descending
+            betrayers.sort((a, b) => {
+                const dA = this.roles.elites.find(e => e.name === a.voter);
+                const dB = this.roles.elites.find(e => e.name === b.voter);
+                return (dB ? dB.weight : 0) - (dA ? dA.weight : 0);
+            });
+
+            // Purge top 2
+            let purgedCount = 0;
+            betrayers.forEach(b => {
+                if (purgedCount < 2) {
+                    this.roles.elites = this.roles.elites.filter(e => e.name !== b.voter);
+                    purgedList.push(b.voter);
+                    purgedCount++;
+                } else {
+                    pardonedList.push(b.voter); // Failed rebels who survived
+                }
+            });
+            if (purgedCount > 0) outcomeMessage += ` ${purgedCount} Traitors Purged.`;
+
+            // Demote Citizens (Mock logic)
+            outcomeMessage += " Dissidents repressed.";
+        }
+
+        // Broadcast Result
+        this.channel.send({
+            type: 'ROUND_RESULT',
+            message: outcomeMessage,
+            success: !coupSuccess, // msg.success means "Regime Won"
+            stats: {
+                loyal: loyalPercent,
+                betray: rebelPercent
+            },
+            purged: purgedList,
+            pardoned: pardonedList
+        });
+
+        this.roundNumber++;
+    }
+
+    // --- UI Updates ---
+
+    updateUI() {
+        const screens = {
+            setup: document.getElementById('screen-setup'),
+            lobby: document.getElementById('screen-lobby'),
+            game: document.getElementById('screen-game')
+        };
+
+        // Hide all first
+        Object.values(screens).forEach(el => {
+            if (el) el.classList.add('hidden');
+        });
+
+        // Show current
+        if (this.state === 'SETUP') {
+            if (screens.setup) screens.setup.classList.remove('hidden');
+        } else if (this.state === 'LOBBY') {
+            if (screens.lobby) screens.lobby.classList.remove('hidden');
+            document.getElementById('display-code').innerText = this.sessionCode;
+            document.getElementById('player-count').innerText = this.players.length;
+        } else if (this.state === 'ACTIVE') {
+            if (screens.game) screens.game.classList.remove('hidden');
+            // Show Header Indicators
+            document.querySelector('.session-header').classList.remove('hidden'); // Ensure header is visible
+            document.getElementById('display-round').innerText = this.roundNumber;
+            document.getElementById('display-phase').innerText = this.phase;
+        }
+    }
+
+    startLobby() {
+        this.state = 'LOBBY';
+        this.updateUI();
+    }
+
+    startGame() {
+        this.beginSimulation();
+    }
+
+    updatePlayerCountUI(count, newPlayerName) {
+        const el = document.getElementById('player-count');
+        if (el) el.innerText = count;
+
+        // Add to list
+        const list = document.getElementById('player-list');
+        if (list && newPlayerName) {
+            const li = document.createElement('li');
+            li.innerText = `${newPlayerName} connected...`;
+            li.className = 'player-item-joined';
+            list.appendChild(li);
+        }
+    }
+}
+
+// Global Instance
+let game;
+
+document.addEventListener('DOMContentLoaded', () => {
+    game = new GameSession();
+
+    // Bind Buttons
+    const btnCreate = document.getElementById('btn-create-session');
+    if (btnCreate) btnCreate.onclick = () => game.startLobby();
+
+    const btnStart = document.getElementById('btn-start-game');
+    if (btnStart) btnStart.onclick = () => game.startGame();
+});
