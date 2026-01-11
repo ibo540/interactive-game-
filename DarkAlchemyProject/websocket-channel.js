@@ -127,6 +127,12 @@ class DualChannel {
                 this.input({ type: 'SESSION_CREATED', ...data });
             });
 
+            // CRITICAL FIX: Listen for JOIN_REQUEST from server
+            this.socket.on('JOIN_REQUEST', (data) => {
+                console.log('📥 Received JOIN_REQUEST via WebSocket:', data);
+                this.input({ type: 'JOIN_REQUEST', ...data });
+            });
+
         } catch (e) {
             console.warn('WebSocket connection failed, falling back to local mode:', e);
             this.initLocal();
