@@ -35,6 +35,11 @@
 </head>
 
 <body>
+    <!-- CRITICAL FIX: Ensure Host connects to the remote server to match Players -->
+    <script>
+        window.GAME_SERVER_URL = 'https://dark-alchemy-server.onrender.com';
+        console.log('🔗 Host Server Configured:', window.GAME_SERVER_URL);
+    </script>
     <div class="main-container">
 
         /* ... existing styles ... */
