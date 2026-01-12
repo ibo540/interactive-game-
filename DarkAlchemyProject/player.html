@@ -693,7 +693,7 @@
                 let myRoleText = "Unknown";
                 let myDetail = "";
 
-                if (msg.roles.leader === myName) {
+                if (msg.roles && msg.roles.leader && msg.roles.leader.name === myName) {
                     myRoleText = "LEADER";
                     myDetail = "Allocating Resources...";
 
