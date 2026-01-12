@@ -184,11 +184,29 @@ class GameSession {
             if (msg.sessionCode === this.sessionCode && msg.playerCount !== undefined) {
                 // Sync actual player names from server
                 if (msg.players && Array.isArray(msg.players)) {
-                    // Server sent actual player names - use them
-                    this.players = msg.players.map(name => ({ name: name, role: null }));
-                    // #region agent log
-                    fetch('http://127.0.0.1:7242/ingest/337209b4-c064-4f4f-9d1d-83736bceeff3', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'game_engine.js:150', message: 'Game engine synced player names from server', data: { playerNames: msg.players, playerCount: this.players.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
-                    // #endregion
+                    // Server sent a list.
+                    // CRITICAL FIX: Merge carefully. Don't overwrite "ibo" with "Player 1".
+                    const serverList = msg.players.map(name => ({ name: name, role: null }));
+
+                    if (serverList.length === this.players.length) {
+                        // Same count, check if we have better names
+                        this.players = this.players.map((current, i) => {
+                            const incoming = serverList[i];
+                            const currentIsGeneric = current.name.startsWith('Player ');
+                            const incomingIsGeneric = incoming.name.startsWith('Player ');
+
+                            // If we have a real name and incoming is generic, KEEP REAL NAME
+                            if (!currentIsGeneric && incomingIsGeneric) {
+                                console.log(`🛡️ Protecting local name "${current.name}" from server overwrite "${incoming.name}"`);
+                                return current;
+                            }
+                            return incoming;
+                        });
+                    } else {
+                        // Count mismatch - trust server, but try to re-apply known names? 
+                        // For now, take server list to stay in sync with count.
+                        this.players = serverList;
+                    }
                 } else {
                     // Fallback: only player count available.
                     // CRITICAL FIX: Do NOT overwrite existing names with "Player X" placeholders.
